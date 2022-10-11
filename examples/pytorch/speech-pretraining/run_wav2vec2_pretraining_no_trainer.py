@@ -18,6 +18,7 @@
 import argparse
 import math
 import os
+import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -27,10 +28,12 @@ import torch
 from datasets import DatasetDict, concatenate_datasets, load_dataset
 from torch.utils.data.dataloader import DataLoader
 from tqdm.auto import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
 import transformers
 from accelerate import Accelerator
 from accelerate.logging import get_logger
+import logging
 from huggingface_hub import Repository
 from transformers import (
     AdamW,
@@ -48,6 +51,14 @@ from transformers.utils import get_full_repo_name, send_example_telemetry
 
 logger = get_logger(__name__)
 
+import sys
+def configure_logger():
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+    logger.setLevel(logging.INFO)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Finetune a transformers model on a text classification task")
@@ -561,6 +572,7 @@ def main():
 
     # Afterwards we recalculate our number of training epochs
     args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+    num_epochs_push_hub = math.ceil(args.num_train_epochs / 10)
 
     # 5. Train
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
@@ -574,6 +586,9 @@ def main():
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
     completed_steps = 0
     starting_epoch = 0
+    
+    # preprare TorchBoard summary writer
+    summary_writer = SummaryWriter(log_dir=Path(Path(args.output_dir).joinpath("runs").joinpath(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')).as_posix()))
 
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
@@ -670,6 +685,15 @@ def main():
                 log_str = ""
                 for k, v in train_logs.items():
                     log_str += "| {}: {:.3e}".format(k, v.item())
+                
+                summary_writer.add_scalar("loss", (loss * args.gradient_accumulation_steps) / num_losses,epoch)
+                summary_writer.add_scalar("constrast_loss", outputs.contrastive_loss / num_losses,epoch)
+                summary_writer.add_scalar("div_loss", outputs.diversity_loss / num_losses,epoch)
+                summary_writer.add_scalar("%_mask_idx", percent_masked / accelerator.num_processes,epoch)
+                summary_writer.add_scalar("ppl", outputs.codevector_perplexity,epoch)
+                summary_writer.add_scalar("lr", torch.tensor(optimizer.param_groups[0]["lr"]),epoch)
+                summary_writer.add_scalar("temp", torch.tensor(gumbel_temperature),epoch)
+                summary_writer.add_scalar("grad_norm",  torch.tensor(grad_norm),epoch)
 
                 if accelerator.is_local_main_process:
                     progress_bar.write(log_str)
@@ -715,6 +739,11 @@ def main():
             val_logs["val_contrastive_loss"] += outputs.contrastive_loss
             val_logs["val_diversity_loss"] += outputs.diversity_loss
             val_logs["val_num_losses"] += batch["mask_time_indices"].sum()
+            
+            summary_writer.add_scalar("val_loss", (outputs.loss) ,epoch)
+            summary_writer.add_scalar("val_contrastive_loss", outputs.contrastive_loss ,epoch)
+            summary_writer.add_scalar("val_diversity_loss", outputs.diversity_loss,epoch)
+            summary_writer.add_scalar("%val_num_losses", batch["mask_time_indices"].sum(),epoch)
 
         # sum over devices in multi-processing
         if accelerator.num_processes > 1:
@@ -739,8 +768,13 @@ def main():
             )
             if accelerator.is_main_process:
                 if args.push_to_hub:
-                    repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
-
+                    if epoch == args.num_train_epochs:
+                        repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+                    else: 
+                        if epoch % num_epochs_push_hub == 0:
+                            repo.push_to_hub(commit_message=f"Push training from Epoch {epoch}",  blocking=False, auto_lfs_prune=True)
+     
+    summary_writer.close()
 
 if __name__ == "__main__":
     main()
