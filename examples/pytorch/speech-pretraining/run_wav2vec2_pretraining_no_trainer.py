@@ -72,6 +72,9 @@ def parse_args():
         help="The names of the training data set splits to use (via the datasets library).",
     )
     parser.add_argument(
+        "--dataset_use_auth_token", action="store_true", help="Use Auth token when fetching dataset"
+    )
+    parser.add_argument(
         "--preprocessing_num_workers",
         type=int,
         default=None,
@@ -247,6 +250,7 @@ def parse_args():
         "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
     )
     parser.add_argument("--hub_token", type=str, help="The token to use to push to the Model Hub.")
+    
     args = parser.parse_args()
 
     if args.push_to_hub:
@@ -410,6 +414,7 @@ def main():
             dataset_config_name,
             split=train_split_name,
             cache_dir=args.cache_dir,
+            use_auth_token=args.dataset_use_auth_token
         )
         datasets_splits.append(dataset_split)
 
