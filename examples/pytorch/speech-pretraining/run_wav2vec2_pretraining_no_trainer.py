@@ -772,7 +772,7 @@ def main():
                         repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
                     else: 
                         if epoch % num_epochs_push_hub == 0:
-                            repo.push_to_hub(commit_message=f"Push training from Epoch {epoch}",  blocking=False, auto_lfs_prune=True)
+                            repo.push_to_hub(commit_message=f"Push training from Epoch {epoch}",  blocking=True, auto_lfs_prune=True)
      
     summary_writer.close()
 
