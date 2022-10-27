@@ -258,7 +258,7 @@ class Wav2Vec2PreTrainer(Trainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
 
-        if self.use_amp:
+        if self.use_cuda_amp:
             with autocast():
                 loss = self.compute_loss(model, inputs)
         else:
@@ -275,7 +275,7 @@ class Wav2Vec2PreTrainer(Trainer):
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
 
-        if self.use_amp:
+        if self.use_cuda_amp:
             self.scaler.scale(loss).backward()
         elif self.use_apex:
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
