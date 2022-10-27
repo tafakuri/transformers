@@ -136,7 +136,17 @@ class DataTrainingArguments:
     min_duration_in_seconds: Optional[float] = field(
         default=3.0, metadata={"help": "Filter audio files that are shorter than `min_duration_in_seconds` seconds"}
     )
-
+    seed: Optional[int] = field(
+        default=0,
+        metadata={"help": ""A seed for reproducible training."},
+    )
+    
+    train_cache_file_name: Optional[str] = field(
+        default=None, metadata={"help": "The cache file for training data."}
+    )
+    validation_cache_file_name: Optional[str] = field(
+        default=None, metadata={"help": "The cache file for validation data."}
+    )
 
 @dataclass
 class DataCollatorForWav2Vec2Pretraining:
@@ -303,26 +313,26 @@ def main():
 
     # Downloading and loading a dataset from the hub.
     datasets_splits = []
-    for dataset_config_name, train_split_name in zip(args.dataset_config_names, args.dataset_split_names):
+    for dataset_config_name, train_split_name in zip(data_args.dataset_config_names, data_args.dataset_split_names):
         # load dataset
         dataset_split = load_dataset(
-            args.dataset_name,
+            data_args.dataset_name,
             dataset_config_name,
             split=train_split_name,
-            cache_dir=args.cache_dir,
-            use_auth_token=args.dataset_use_auth_token
+            cache_dir=model_args.cache_dir,
+            use_auth_token=data_args.dataset_use_auth_token
         )
         datasets_splits.append(dataset_split)
 
     # Next, we concatenate all configurations and splits into a single training dataset
     raw_datasets = DatasetDict()
     if len(datasets_splits) > 1:
-        raw_datasets["train"] = concatenate_datasets(datasets_splits).shuffle(seed=args.seed)
+        raw_datasets["train"] = concatenate_datasets(datasets_splits).shuffle(seed=data_args.seed)
     else:
         raw_datasets["train"] = datasets_splits[0]
 
     # Take ``args.validation_split_percentage`` from the training dataset for the validation_split_percentage
-    num_validation_samples = raw_datasets["train"].num_rows * args.validation_split_percentage // 100
+    num_validation_samples = raw_datasets["train"].num_rows * data_args.validation_split_percentage // 100
 
     if num_validation_samples == 0:
         raise ValueError(
@@ -338,11 +348,11 @@ def main():
     # Thankfully, `datasets` takes care of automatically loading and resampling the audio,
     # so that we just need to set the correct target sampling rate and normalize the input
     # via the `feature_extractor`
-    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(args.model_name_or_path)
+    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_args.model_name_or_path)
 
     # make sure that dataset decodes audio with correct sampling rate
     raw_datasets = raw_datasets.cast_column(
-        args.speech_file_column, datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate)
+        data_args.speech_file_column, datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate)
     )
 
     # only normalized-inputs-training is supported
@@ -352,11 +362,11 @@ def main():
         )
 
     # set max & min audio length in number of samples
-    max_length = int(args.max_duration_in_seconds * feature_extractor.sampling_rate)
-    min_length = int(args.min_duration_in_seconds * feature_extractor.sampling_rate)
+    max_length = int(data_args.max_duration_in_seconds * feature_extractor.sampling_rate)
+    min_length = int(data_args.min_duration_in_seconds * feature_extractor.sampling_rate)
 
     def prepare_dataset(batch):
-        sample = batch[args.speech_file_column]
+        sample = batch[data_args.speech_file_column]
 
         inputs = feature_extractor(
             sample["array"], sampling_rate=sample["sampling_rate"], max_length=max_length, truncation=True
@@ -368,14 +378,14 @@ def main():
 
     # load via mapped files via path
     cache_file_names = None
-    if args.train_cache_file_name is not None:
-        cache_file_names = {"train": args.train_cache_file_name, "validation": args.validation_cache_file_name}
+    if data_args.train_cache_file_name is not None:
+        cache_file_names = {"train": data_args.train_cache_file_name, "validation": data_args.validation_cache_file_name}
 
     # load audio files into numpy arrays
     with accelerator.main_process_first():
         vectorized_datasets = raw_datasets.map(
             prepare_dataset,
-            num_proc=args.preprocessing_num_workers,
+            num_proc=data_args.preprocessing_num_workers,
             remove_columns=raw_datasets["train"].column_names,
             cache_file_names=cache_file_names,
         )
@@ -383,7 +393,7 @@ def main():
         if min_length > 0.0:
             vectorized_datasets = vectorized_datasets.filter(
                 lambda x: x > min_length,
-                num_proc=args.preprocessing_num_workers,
+                num_proc=data_args.preprocessing_num_workers,
                 input_columns=["input_length"],
             )
 
