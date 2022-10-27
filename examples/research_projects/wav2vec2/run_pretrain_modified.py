@@ -138,7 +138,7 @@ class DataTrainingArguments:
     )
     seed: Optional[int] = field(
         default=0,
-        metadata={"help": ""A seed for reproducible training."},
+        metadata={"help": "A seed for reproducible training."},
     )
     
     train_cache_file_name: Optional[str] = field(
