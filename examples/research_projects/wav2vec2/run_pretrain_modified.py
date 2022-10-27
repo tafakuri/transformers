@@ -136,11 +136,7 @@ class DataTrainingArguments:
     min_duration_in_seconds: Optional[float] = field(
         default=3.0, metadata={"help": "Filter audio files that are shorter than `min_duration_in_seconds` seconds"}
     )
-    seed: Optional[int] = field(
-        default=0,
-        metadata={"help": "A seed for reproducible training."},
-    )
-    
+
     train_cache_file_name: Optional[str] = field(
         default=None, metadata={"help": "The cache file for training data."}
     )
@@ -327,7 +323,7 @@ def main():
     # Next, we concatenate all configurations and splits into a single training dataset
     raw_datasets = DatasetDict()
     if len(datasets_splits) > 1:
-        raw_datasets["train"] = concatenate_datasets(datasets_splits).shuffle(seed=data_args.seed)
+        raw_datasets["train"] = concatenate_datasets(datasets_splits).shuffle(seed=training_args.seed)
     else:
         raw_datasets["train"] = datasets_splits[0]
 
