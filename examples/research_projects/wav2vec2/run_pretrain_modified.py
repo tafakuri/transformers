@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from datasets import DatasetDict, load_dataset
+from datasets import DatasetDict, load_dataset, concatenate_datasets
 from packaging import version
 from torch import nn
 
@@ -324,24 +324,24 @@ def main():
 
     """ 
     # Downloading and loading a dataset from the hub.
-    datasets = load_dataset(
+    datasets_splits = load_dataset(
         data_args.dataset_name, 
         data_args.dataset_config_name, 
         cache_dir=model_args.cache_dir,
         use_auth_token=data_args.dataset_use_auth_token
     )
 
-    if "validation" not in datasets.keys():
+    if "validation" not in datasets_splits.keys():
         # make sure only "validation" and "train" keys remain"
-        datasets = DatasetDict()
-        datasets["validation"] = load_dataset(
+        datasets_splits = DatasetDict()
+        datasets_splits["validation"] = load_dataset(
             data_args.dataset_name,
             data_args.dataset_config_name,
             split=f"{data_args.train_split_name}[:{data_args.validation_split_percentage}%]",
             cache_dir=model_args.cache_dir,
             use_auth_token=data_args.dataset_use_auth_token
         )
-        datasets["train"] = load_dataset(
+        datasets_splits["train"] = load_dataset(
             data_args.dataset_name,
             data_args.dataset_config_name,
             split=f"{data_args.train_split_name}[{data_args.validation_split_percentage}%:]",
@@ -350,15 +350,15 @@ def main():
         )
     else:
         # make sure only "validation" and "train" keys remain"
-        datasets = DatasetDict()
-        datasets["validation"] = load_dataset(
+        datasets_splits = DatasetDict()
+        datasets_splits["validation"] = load_dataset(
             data_args.dataset_name,
             data_args.dataset_config_name,
             split="validation",
             cache_dir=model_args.cache_dir,
             use_auth_token=data_args.dataset_use_auth_token
         )
-        datasets["train"] = load_dataset(
+        datasets_splits["train"] = load_dataset(
             data_args.dataset_name,
             data_args.dataset_config_name,
             split=f"{data_args.train_split_name}",
@@ -367,7 +367,7 @@ def main():
         )
         
     # Next, we concatenate all configurations and splits into a single training dataset
-    raw_datasets = datasets
+    raw_datasets = datasets_splits
     """
     if len(datasets_splits) > 1:
         raw_datasets["train"] = concatenate_datasets(datasets_splits).shuffle(seed=training_args.seed)
