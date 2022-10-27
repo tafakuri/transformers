@@ -95,6 +95,7 @@ class DataTrainingArguments:
     dataset_config_name: Optional[str] = field(
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
+    
     train_split_name: Optional[str] = field(
         default="train",
         metadata={
@@ -308,8 +309,9 @@ def main():
     configure_logger(model_args, training_args)
 
     # Downloading and loading a dataset from the hub.
+    """
     datasets_splits = []
-    for dataset_config_name, train_split_name in zip(data_args.dataset_config_names, data_args.dataset_split_names):
+    for dataset_config_name, train_split_name in zip(data_args.dataset_config_name, data_args.dataset_split_names):
         # load dataset
         dataset_split = load_dataset(
             data_args.dataset_name,
@@ -320,14 +322,59 @@ def main():
         )
         datasets_splits.append(dataset_split)
 
+    """ 
+    # Downloading and loading a dataset from the hub.
+    datasets = load_dataset(
+        data_args.dataset_name, 
+        data_args.dataset_config_name, 
+        cache_dir=model_args.cache_dir,
+        use_auth_token=data_args.dataset_use_auth_token
+    )
+
+    if "validation" not in datasets.keys():
+        # make sure only "validation" and "train" keys remain"
+        datasets = DatasetDict()
+        datasets["validation"] = load_dataset(
+            data_args.dataset_name,
+            data_args.dataset_config_name,
+            split=f"{data_args.train_split_name}[:{data_args.validation_split_percentage}%]",
+            cache_dir=model_args.cache_dir,
+            use_auth_token=data_args.dataset_use_auth_token
+        )
+        datasets["train"] = load_dataset(
+            data_args.dataset_name,
+            data_args.dataset_config_name,
+            split=f"{data_args.train_split_name}[{data_args.validation_split_percentage}%:]",
+            cache_dir=model_args.cache_dir,
+            use_auth_token=data_args.dataset_use_auth_token
+        )
+    else:
+        # make sure only "validation" and "train" keys remain"
+        datasets = DatasetDict()
+        datasets["validation"] = load_dataset(
+            data_args.dataset_name,
+            data_args.dataset_config_name,
+            split="validation",
+            cache_dir=model_args.cache_dir,
+            use_auth_token=data_args.dataset_use_auth_token
+        )
+        datasets["train"] = load_dataset(
+            data_args.dataset_name,
+            data_args.dataset_config_name,
+            split=f"{data_args.train_split_name}",
+            cache_dir=model_args.cache_dir,
+            use_auth_token=data_args.dataset_use_auth_token
+        )
+        
     # Next, we concatenate all configurations and splits into a single training dataset
-    raw_datasets = DatasetDict()
+    raw_datasets = datasets
+    """
     if len(datasets_splits) > 1:
         raw_datasets["train"] = concatenate_datasets(datasets_splits).shuffle(seed=training_args.seed)
     else:
         raw_datasets["train"] = datasets_splits[0]
-
-    # Take ``args.validation_split_percentage`` from the training dataset for the validation_split_percentage
+    """
+    # Take ``data_args.validation_split_percentage`` from the training dataset for the validation_split_percentage
     num_validation_samples = raw_datasets["train"].num_rows * data_args.validation_split_percentage // 100
 
     if num_validation_samples == 0:
