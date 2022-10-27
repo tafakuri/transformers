@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+import datasets
 from datasets import DatasetDict, load_dataset, concatenate_datasets
 from packaging import version
 from torch import nn
