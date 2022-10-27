@@ -426,23 +426,22 @@ def main():
         cache_file_names = {"train": data_args.train_cache_file_name, "validation": data_args.validation_cache_file_name}
 
     # load audio files into numpy arrays
-    with accelerator.main_process_first():
-        vectorized_datasets = raw_datasets.map(
-            prepare_dataset,
+    vectorized_datasets = raw_datasets.map(
+        prepare_dataset,
+        num_proc=data_args.preprocessing_num_workers,
+        remove_columns=raw_datasets["train"].column_names,
+        cache_file_names=cache_file_names,
+    )
+
+    if min_length > 0.0:
+        vectorized_datasets = vectorized_datasets.filter(
+            lambda x: x > min_length,
             num_proc=data_args.preprocessing_num_workers,
-            remove_columns=raw_datasets["train"].column_names,
-            cache_file_names=cache_file_names,
+            input_columns=["input_length"],
         )
 
-        if min_length > 0.0:
-            vectorized_datasets = vectorized_datasets.filter(
-                lambda x: x > min_length,
-                num_proc=data_args.preprocessing_num_workers,
-                input_columns=["input_length"],
-            )
+    vectorized_datasets = vectorized_datasets.remove_columns("input_length")
 
-        vectorized_datasets = vectorized_datasets.remove_columns("input_length")
-    
     # pretraining is only supported for "newer" stable layer norm architecture
     # apply_spec_augment has to be True, mask_feature_prob has to be 0.0
     config = Wav2Vec2Config.from_pretrained(
