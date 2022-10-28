@@ -447,7 +447,7 @@ def main():
 
     vectorized_datasets = vectorized_datasets.remove_columns("input_length")
     """
-    
+    """
     def normalize(batch):
         sample = batch[data_args.speech_file_column]
         
@@ -456,7 +456,23 @@ def main():
         )
         
         return feature_extractor(sample["array"], sampling_rate=feature_extractor.sampling_rate)
+    """
+    
+    def normalize(batch):
+        sample = batch[data_args.speech_file_column]
+        
+        inputs = feature_extractor(
+            sample["array"], sampling_rate=sample["sampling_rate"]
+        )
+         
+        batch["input_values"] = inputs.input_values[0]
+        batch["attention_mask"] = inputs.attention_mask[0]
+        batch["input_length"] = len(inputs.input_values[0])
 
+        return batch
+        #return feature_extractor(sample["array"], sampling_rate=feature_extractor.sampling_rate)
+    
+    
     # normalize and transform to `BatchFeatures`
     vectorized_datasets = raw_datasets.map(
         normalize,
