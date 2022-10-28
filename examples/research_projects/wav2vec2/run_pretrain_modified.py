@@ -449,7 +449,8 @@ def main():
     """
     
     def normalize(batch):
-        return feature_extractor(batch[data_args.speech_file_column]["array"], sampling_rate=feature_extractor.sampling_rate)
+        sample = batch[data_args.speech_file_column]
+        return feature_extractor(sample["array"], sampling_rate=feature_extractor.sampling_rate)
 
     # normalize and transform to `BatchFeatures`
     vectorized_datasets = raw_datasets.map(
