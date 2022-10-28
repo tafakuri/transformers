@@ -392,7 +392,10 @@ def main():
     # Thankfully, `datasets` takes care of automatically loading and resampling the audio,
     # so that we just need to set the correct target sampling rate and normalize the input
     # via the `feature_extractor`
-    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_args.model_name_or_path)
+    #feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_args.model_name_or_path)
+    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
+        model_args.model_name_or_path, cache_dir=model_args.cache_dir, do_normalize=True
+    )
 
     # make sure that dataset decodes audio with correct sampling rate
     raw_datasets = raw_datasets.cast_column(
@@ -404,7 +407,7 @@ def main():
         raise ValueError(
             "Training is only supported for normalized inputs. Make sure ``feature_extractor.do_normalize == True``"
         )
-
+    """
     # set max & min audio length in number of samples
     max_length = int(data_args.max_duration_in_seconds * feature_extractor.sampling_rate)
     min_length = int(data_args.min_duration_in_seconds * feature_extractor.sampling_rate)
@@ -429,6 +432,7 @@ def main():
     # load audio files into numpy arrays
     vectorized_datasets = raw_datasets.map(
         prepare_dataset,
+        batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=raw_datasets["train"].column_names,
         cache_file_names=cache_file_names,
@@ -442,7 +446,20 @@ def main():
         )
 
     vectorized_datasets = vectorized_datasets.remove_columns("input_length")
+    """
+    
+    def normalize(batch):
+        return feature_extractor(batch["array"], sampling_rate=feature_extractor.sampling_rate)
 
+    # normalize and transform to `BatchFeatures`
+    vectorized_datasets = raw_datasets.map(
+        normalize,
+        batched=True,
+        num_proc=data_args.preprocessing_num_workers,
+        load_from_cache_file=not data_args.overwrite_cache,
+        remove_columns=raw_datasets["train"].column_names,
+    )
+    
     # pretraining is only supported for "newer" stable layer norm architecture
     # apply_spec_augment has to be True, mask_feature_prob has to be 0.0
     config = Wav2Vec2Config.from_pretrained(
