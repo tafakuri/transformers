@@ -450,6 +450,11 @@ def main():
     
     def normalize(batch):
         sample = batch[data_args.speech_file_column]
+        
+        inputs = feature_extractor(
+            sample["array"], sampling_rate=sample["sampling_rate"], max_length=max_length, truncation=True
+        )
+        
         return feature_extractor(sample["array"], sampling_rate=feature_extractor.sampling_rate)
 
     # normalize and transform to `BatchFeatures`
