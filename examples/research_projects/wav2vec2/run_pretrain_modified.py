@@ -416,7 +416,7 @@ def main():
             sample["array"], sampling_rate=sample["sampling_rate"], max_length=max_length, truncation=True
         )
         #batch["input_values"] = inputs.input_values[0]
-        batch["input_values"] = inputs
+        batch["input_values"] = inputs.input_values
         batch["input_length"] = len(inputs.input_values[0])
 
         return batch
