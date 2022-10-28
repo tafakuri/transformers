@@ -460,7 +460,6 @@ def main():
     # normalize and transform to `BatchFeatures`
     vectorized_datasets = raw_datasets.map(
         normalize,
-        batched=True,
         num_proc=data_args.preprocessing_num_workers,
         load_from_cache_file=not data_args.overwrite_cache,
         remove_columns=raw_datasets["train"].column_names,
