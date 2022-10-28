@@ -465,7 +465,7 @@ def main():
             sample["array"], sampling_rate=sample["sampling_rate"]
         )
          
-        batch["input_values"] = inputs.input_values[0]
+        batch["input_values"] = inputs.input_values
         batch["attention_mask"] = inputs.attention_mask
         batch["input_length"] = len(inputs.input_values[0])
 
